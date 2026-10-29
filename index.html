@@ -129,15 +129,20 @@
         window.isLeaderboardModalOpen = false;
         window.activeLeaderboardTab = 'daily';
 
-        function getLeaderboard() {
-            const allScores = window.globalScoresList || [];
-            if (window.activeLeaderboardTab === 'daily') {
-                const now = new Date();
-                const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-                return allScores.filter(item => item.dateKey === todayKey);
-            }
-            return allScores;
-        }
+       function getLeaderboard() {
+    const allScores = window.globalScoresList || [];
+    
+    if (window.activeLeaderboardTab === 'daily') {
+        const now = new Date();
+        const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
+        const dailyList = allScores.filter(item => item.dateKey === todayKey);
+        
+        // Eğer bugün oynayan varsa bugünün skorlarını, yoksa veya tarih uyuşmazlığında TÜM skorları gösterir
+        return dailyList.length > 0 ? dailyList : allScores;
+    }
+    
+    return allScores;
+}
 
         function setLeaderboardTab(tab) {
             window.activeLeaderboardTab = tab;
