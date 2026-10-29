@@ -57,21 +57,6 @@
             return `${y}-${m}-${d}`;
         }
 
-        function mergeScoresList(newScores) {
-            if (!Array.isArray(newScores)) return;
-            const map = new Map();
-            [...window.globalScoresList, ...newScores].forEach(item => {
-                if (item && item.name && item.score !== undefined) {
-                    const key = item.id || `${item.uid}_${item.timestamp}`;
-                    map.set(key, item);
-                }
-            });
-            window.globalScoresList = Array.from(map.values()).sort((a, b) => Number(b.score) - Number(a.score));
-            if (window.isLeaderboardModalOpen && typeof window.renderLeaderboardTable === 'function') {
-                window.renderLeaderboardTable();
-            }
-        }
-
         function saveEntryToFirebase(entry) {
             if (!leaderboardDb || !firebaseReady) {
                 pendingScores.push(entry);
