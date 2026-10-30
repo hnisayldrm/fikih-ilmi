@@ -22,10 +22,14 @@
     <script>
         window.globalScoresList = [];
         window.isLeaderboardModalOpen = false;
+        window.activeLeaderboardTab = 'daily';
+        const MAX_DAILY_PLAY_LIMIT = 3;
+
         let leaderboardDb = null;
         let firebaseReady = false;
         let pendingScores = [];
         const SCORE_PATH = 'scores2'; // İkinci oyunun scores2 alanı
+
         const currentUserId = (() => {
             try {
                 let id = localStorage.getItem('fikih_oyun_2_dev_id');
@@ -57,6 +61,34 @@
             return `${y}-${m}-${d}`;
         }
 
+        // Günlük 3 Tur Oynama Sınırı Yönetimi
+        function getTodayPlayCount() {
+            try {
+                const key = `fikih_daily_plays_${localDateKey()}`;
+                return Number(localStorage.getItem(key)) || 0;
+            } catch (e) {
+                return 0;
+            }
+        }
+
+        function incrementTodayPlayCount() {
+            try {
+                const key = `fikih_daily_plays_${localDateKey()}`;
+                const current = getTodayPlayCount();
+                localStorage.setItem(key, current + 1);
+                updateDailyRightsUI();
+            } catch (e) {}
+        }
+
+        function updateDailyRightsUI() {
+            const played = getTodayPlayCount();
+            const remaining = Math.max(0, MAX_DAILY_PLAY_LIMIT - played);
+            const el = document.getElementById('dailyRightsText');
+            if (el) {
+                el.innerText = `${remaining} / ${MAX_DAILY_PLAY_LIMIT}`;
+            }
+        }
+
         function saveEntryToFirebase(entry) {
             if (!leaderboardDb || !firebaseReady) {
                 pendingScores.push(entry);
@@ -64,79 +96,94 @@
             }
             leaderboardDb.ref(SCORE_PATH).push(entry).catch(error => {
                 console.error('Skor kaydedilemedi:', error);
-                alert('Skor ortak tabloya kaydedilemedi. Firebase veritabanı kurallarını kontrol edin.');
             });
         }
-// Dünün tarih anahtarını alma (Örn: "2026-10-28")
-function getYesterdayDateKey() {
-    const yesterday = new Date();
-    yesterday.setDate(yesterday.getDate() - 1);
-    const y = yesterday.getFullYear();
-    const m = String(yesterday.getMonth() + 1).padStart(2, '0');
-    const d = String(yesterday.getDate()).padStart(2, '0');
-    return `${y}-${m}-${d}`;
-}
 
-// Dünün birincisini bulup ana sayfadaki karta basma
-function updateYesterdayWinnerUI() {
-    const allScores = window.globalScoresList || [];
-    const yesterdayKey = getYesterdayDateKey();
+        function getYesterdayDateKey() {
+            const yesterday = new Date();
+            yesterday.setDate(yesterday.getDate() - 1);
+            return localDateKey(yesterday);
+        }
 
-    // Sadece dünün skorlarını filtrele
-    const yesterdayScores = allScores.filter(item => item.dateKey === yesterdayKey);
-    const winnerCard = document.getElementById('yesterdayWinnerCard');
-    
-    if (!winnerCard) return;
+        // Aynı isimdeki kişilerin yalnızca EN YÜKSEK skorunu filteleyen yardımcı fonksiyon
+        function filterHighestScoresOnly(scores) {
+            const highestMap = new Map();
 
-    if (yesterdayScores.length > 0) {
-        // Puanı en yüksek olan dünün 1.si
-        const topWinner = yesterdayScores.sort((a, b) => Number(b.score) - Number(a.score))[0];
+            scores.forEach(item => {
+                const normalizedName = (item.name || '').trim().toLowerCase();
+                if (!normalizedName) return;
 
-        document.getElementById('winnerName').innerText = topWinner.name || 'Öğrenci';
-        document.getElementById('winnerScore').innerText = `${topWinner.score} Puan (${topWinner.correct})`;
-        
-        const yesterdayDate = new Date();
-        yesterdayDate.setDate(yesterdayDate.getDate() - 1);
-        document.getElementById('winnerDate').innerText = yesterdayDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
-        
-        winnerCard.classList.remove('hidden');
-    } else {
-        winnerCard.classList.add('hidden');
-    }
-}
-
-// Canlı veri senkronizasyonu ve şampiyon kartı tetikleme
-function initLiveLeaderboardSync() {
-    try {
-        if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
-        leaderboardDb = firebase.database();
-        
-        firebase.auth().signInAnonymously().then(() => {
-            firebaseReady = true;
-            
-            leaderboardDb.ref(SCORE_PATH).on('value', snapshot => {
-                const scores = [];
-                snapshot.forEach(child => {
-                    scores.push({ id: child.key, ...child.val() });
-                });
-                
-                window.globalScoresList = scores.sort((a, b) => Number(b.score) - Number(a.score));
-                
-                // Dünün birincisi kartını güncelle
-                updateYesterdayWinnerUI();
-
-                if (typeof window.renderLeaderboardTable === 'function') {
-                    window.renderLeaderboardTable();
+                if (!highestMap.has(normalizedName)) {
+                    highestMap.set(normalizedName, item);
+                } else {
+                    const existing = highestMap.get(normalizedName);
+                    if (Number(item.score) > Number(existing.score)) {
+                        highestMap.set(normalizedName, item);
+                    }
                 }
-            }, error => console.error('Skorlar okunamadı:', error));
+            });
 
-            const queued = pendingScores.splice(0);
-            queued.forEach(saveEntryToFirebase);
-        }).catch(error => console.error('Firebase giriş hatası:', error));
-    } catch (e) { 
-        console.error('Firebase başlatılamadı:', e); 
-    }
-}
+            return Array.from(highestMap.values()).sort((a, b) => Number(b.score) - Number(a.score));
+        }
+
+        function updateYesterdayWinnerUI() {
+            const allScores = window.globalScoresList || [];
+            const yesterdayKey = getYesterdayDateKey();
+
+            let targetScores = allScores.filter(item => item.dateKey === yesterdayKey);
+            const winnerCard = document.getElementById('yesterdayWinnerCard');
+            if (!winnerCard) return;
+
+            if (targetScores.length === 0) {
+                targetScores = [...allScores];
+            }
+
+            const uniqueTargetScores = filterHighestScoresOnly(targetScores);
+            const topWinner = uniqueTargetScores[0];
+
+            if (topWinner && topWinner.name) {
+                document.getElementById('winnerName').innerText = topWinner.name || 'Öğrenci';
+                document.getElementById('winnerScore').innerText = `${topWinner.score} Puan (${topWinner.correct})`;
+                
+                const yesterdayDate = new Date();
+                yesterdayDate.setDate(yesterdayDate.getDate() - 1);
+                document.getElementById('winnerDate').innerText = yesterdayDate.toLocaleDateString('tr-TR', { day: 'numeric', month: 'short' });
+                
+                winnerCard.classList.remove('hidden');
+            } else {
+                winnerCard.classList.add('hidden');
+            }
+        }
+
+        function initLiveLeaderboardSync() {
+            try {
+                if (!firebase.apps.length) firebase.initializeApp(firebaseConfig);
+                leaderboardDb = firebase.database();
+                
+                firebase.auth().signInAnonymously().then(() => {
+                    firebaseReady = true;
+                    
+                    leaderboardDb.ref(SCORE_PATH).on('value', snapshot => {
+                        const scores = [];
+                        snapshot.forEach(child => {
+                            scores.push({ id: child.key, ...child.val() });
+                        });
+                        
+                        window.globalScoresList = scores.sort((a, b) => Number(b.score) - Number(a.score));
+                        updateYesterdayWinnerUI();
+
+                        if (typeof window.renderLeaderboardTable === 'function') {
+                            window.renderLeaderboardTable();
+                        }
+                    }, error => console.error('Skorlar okunamadı:', error));
+
+                    const queued = pendingScores.splice(0);
+                    queued.forEach(saveEntryToFirebase);
+                }).catch(error => console.error('Firebase giriş hatası:', error));
+            } catch (e) { 
+                console.error('Firebase başlatılamadı:', e); 
+            }
+        }
 
         window.saveScoreToCloud = function(name, scoreVal, correct, total, mode) {
             const now = new Date();
@@ -153,34 +200,24 @@ function initLiveLeaderboardSync() {
             saveEntryToFirebase(newEntry);
         };
 
-        window.clearCloudLeaderboard = function() {
-            alert('Skor tablosunu temizlemek için Firebase Console > Realtime Database > Data bölümündeki scores2 alanını kullanın.');
-        };
+        window.addEventListener('DOMContentLoaded', () => {
+            initLiveLeaderboardSync();
+            updateDailyRightsUI();
+        });
 
-        window.addEventListener('DOMContentLoaded', initLiveLeaderboardSync);
-    </script>
-
-    <script>
-        if (!window.globalScoresList) {
-            window.globalScoresList = [];
+        function getLeaderboard() {
+            const allScores = window.globalScoresList || [];
+            let sourceList = allScores;
+            
+            if (window.activeLeaderboardTab === 'daily') {
+                const todayKey = localDateKey();
+                const dailyList = allScores.filter(item => item.dateKey === todayKey);
+                sourceList = dailyList.length > 0 ? dailyList : allScores;
+            }
+            
+            // Aynı isimdeki oyuncuların sadece EN YÜKSEK skoru tutulur
+            return filterHighestScoresOnly(sourceList);
         }
-        window.isLeaderboardModalOpen = false;
-        window.activeLeaderboardTab = 'daily';
-
-       function getLeaderboard() {
-    const allScores = window.globalScoresList || [];
-    
-    if (window.activeLeaderboardTab === 'daily') {
-        const now = new Date();
-        const todayKey = `${now.getFullYear()}-${String(now.getMonth()+1).padStart(2,'0')}-${String(now.getDate()).padStart(2,'0')}`;
-        const dailyList = allScores.filter(item => item.dateKey === todayKey);
-        
-        // Eğer bugün oynayan varsa bugünün skorlarını, yoksa veya tarih uyuşmazlığında TÜM skorları gösterir
-        return dailyList.length > 0 ? dailyList : allScores;
-    }
-    
-    return allScores;
-}
 
         function setLeaderboardTab(tab) {
             window.activeLeaderboardTab = tab;
@@ -216,7 +253,8 @@ function initLiveLeaderboardSync() {
 
             noMsg.classList.add('hidden');
 
-            list.slice(0, 30).forEach((item, index) => {
+            // 30 KİŞİ SINIRI KALDIRILDI: Tüm oyuncular listelenir
+            list.forEach((item, index) => {
                 const tr = document.createElement('tr');
                 tr.className = index % 2 === 0 ? 'bg-slate-900/60' : 'bg-slate-800/40';
 
@@ -251,12 +289,6 @@ function initLiveLeaderboardSync() {
         function closeLeaderboardModal() {
             window.isLeaderboardModalOpen = false;
             document.getElementById('leaderboardModal').classList.add('hidden');
-        }
-
-        function clearLeaderboard() {
-            if (typeof window.clearCloudLeaderboard === 'function') {
-                window.clearCloudLeaderboard();
-            }
         }
 
         tailwind = {
@@ -342,32 +374,41 @@ function initLiveLeaderboardSync() {
                     Fıkıh ilminin temel kavramlarını, tahareti, abdest ve namaz hükümlerini öğrenin, bilgilerinizi test edin!
                 </p>
             </div>
-<!-- Dünün Şampiyonu Panosu (Fıkıh Keşfi) -->
-<div id="yesterdayWinnerCard" class="hidden bg-gradient-to-r from-amber-500/20 via-emerald-950 to-emerald-600/20 border border-amber-400/50 rounded-2xl p-4 max-w-xl mx-auto text-left shadow-lg backdrop-blur-sm">
-    <div class="flex items-center space-x-4">
-        <div class="w-12 h-12 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-amber-300 text-2xl shrink-0">
-            <i class="fa-solid fa-crown"></i>
-        </div>
-        <div class="flex-grow">
-            <div class="flex items-center justify-between">
-                <span class="text-xs font-black uppercase tracking-wider text-amber-300">👑 Dünün Şampiyonu</span>
-                <span id="winnerDate" class="text-[10px] text-emerald-300/80 font-semibold">--</span>
+
+            <!-- Dünün Şampiyonu Panosu (Fıkıh Keşfi) -->
+            <div id="yesterdayWinnerCard" class="hidden bg-gradient-to-r from-amber-500/20 via-emerald-950 to-emerald-600/20 border border-amber-400/50 rounded-2xl p-4 max-w-xl mx-auto text-left shadow-lg backdrop-blur-sm">
+                <div class="flex items-center space-x-4">
+                    <div class="w-12 h-12 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-amber-300 text-2xl shrink-0">
+                        <i class="fa-solid fa-crown"></i>
+                    </div>
+                    <div class="flex-grow">
+                        <div class="flex items-center justify-between">
+                            <span class="text-xs font-black uppercase tracking-wider text-amber-300">👑 Dünün Şampiyonu</span>
+                            <span id="winnerDate" class="text-[10px] text-emerald-300/80 font-semibold">--</span>
+                        </div>
+                        <div class="flex items-baseline space-x-2 mt-0.5">
+                            <h4 id="winnerName" class="text-base font-black text-white">Yükleniyor...</h4>
+                            <span id="winnerScore" class="text-xs font-bold text-amber-300">0 Puan</span>
+                        </div>
+                        <p class="text-[11px] text-emerald-200/70 mt-0.5">Dün en yüksek skoru alarak zirveye oturdu!</p>
+                    </div>
+                </div>
             </div>
-            <div class="flex items-baseline space-x-2 mt-0.5">
-                <h4 id="winnerName" class="text-base font-black text-white">Yükleniyor...</h4>
-                <span id="winnerScore" class="text-xs font-bold text-amber-300">0 Puan</span>
-            </div>
-            <p class="text-[11px] text-emerald-200/70 mt-0.5">Dün en yüksek skoru alarak zirveye oturdu!</p>
-        </div>
-    </div>
-</div>
-            <!-- Player Name Registration Card -->
+
+            <!-- Player Name Registration Card & Daily Limit Counter -->
             <div class="bg-slate-800/90 border border-slate-700 rounded-2xl p-5 max-w-xl mx-auto text-left space-y-3 shadow-xl">
                 <div class="flex items-center justify-between">
                     <label for="playerNameInput" class="block text-sm font-bold text-slate-200 flex items-center space-x-2">
                         <i class="fa-solid fa-user-pen text-emerald-400"></i>
                         <span>Oyuncu Adı / İsminiz: <span class="text-rose-400">*</span></span>
                     </label>
+
+                    <!-- Günlük Hak Göstergesi -->
+                    <div class="text-xs font-semibold text-slate-300 flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700">
+                        <i class="fa-solid fa-gamepad text-emerald-400"></i>
+                        <span>Kalan Oyun Hakkı:</span>
+                        <span id="dailyRightsText" class="font-extrabold text-amber-300">3 / 3</span>
+                    </div>
                 </div>
 
                 <div class="space-y-2">
@@ -375,7 +416,7 @@ function initLiveLeaderboardSync() {
                         <input type="text" id="playerNameInput" placeholder="İsminizi yazınız..." maxlength="25" class="w-full bg-slate-900 border border-slate-600 focus:border-emerald-500 rounded-xl px-4 py-3 text-slate-100 font-semibold placeholder-slate-500 focus:outline-none focus:ring-2 focus:ring-emerald-500/20 text-sm transition-all" />
                         <div id="nameErrorMsg" class="hidden text-xs text-rose-400 mt-1 font-medium flex items-center space-x-1">
                             <i class="fa-solid fa-triangle-exclamation"></i>
-                            <span>Lütfen yarışmaya başlamadan önce buraya isminizi yazınız.</span>
+                            <span id="nameErrorMsgText">Lütfen yarışmaya başlamadan önce buraya isminizi yazınız.</span>
                         </div>
                     </div>
                 </div>
@@ -711,7 +752,7 @@ function initLiveLeaderboardSync() {
 
                 <!-- Modal Footer -->
                 <div class="px-6 py-3 border-t border-slate-800 bg-slate-850 flex items-center justify-between text-xs">
-                    <span class="text-slate-500">Skorlar canlı olarak güncellenir.</span>
+                    <span class="text-slate-500">En yüksek skorlar canlı olarak güncellenir.</span>
                     <button onclick="closeLeaderboardModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700 transition-colors">
                         Kapat
                     </button>
@@ -793,7 +834,6 @@ function initLiveLeaderboardSync() {
 
     <!-- Quiz Dataset & Logic -->
     <script>
-        // PDF'TEKİ 25 FIKIH SORUSU (Çeldiriciler benzer uzunlukta dengelenmiştir)
         const questionsData = [
             {
                 id: 1,
@@ -1137,9 +1177,19 @@ function initLiveLeaderboardSync() {
         function startGame(mode) {
             const nameInput = document.getElementById('playerNameInput');
             const nameErr = document.getElementById('nameErrorMsg');
+            const nameErrText = document.getElementById('nameErrorMsgText');
             playerName = nameInput.value.trim();
 
             if (!playerName) {
+                nameErrText.innerText = "Lütfen yarışmaya başlamadan önce buraya isminizi yazınız.";
+                nameErr.classList.remove('hidden');
+                nameInput.classList.add('border-rose-500');
+                return;
+            }
+
+            // Günlük 3 Tur Sınırı Kontrolü
+            if (getTodayPlayCount() >= MAX_DAILY_PLAY_LIMIT) {
+                nameErrText.innerText = "Günlük maksimum oyun oynama hakkınıza (3/3) ulaştınız. Yarın tekrar bekleriz!";
                 nameErr.classList.remove('hidden');
                 nameInput.classList.add('border-rose-500');
                 return;
@@ -1147,6 +1197,9 @@ function initLiveLeaderboardSync() {
 
             nameErr.classList.add('hidden');
             nameInput.classList.remove('border-rose-500');
+
+            // Yeni oyun başladığında günlük tur hakkından 1 eksilt
+            incrementTodayPlayCount();
 
             currentGameMode = mode;
             currentQuestionIndex = 0;
@@ -1441,6 +1494,7 @@ function initLiveLeaderboardSync() {
 
         function resetToHome() {
             stopTimer();
+            updateDailyRightsUI();
             document.getElementById('gameplayScreen').classList.add('hidden');
             document.getElementById('resultScreen').classList.add('hidden');
             document.getElementById('welcomeScreen').classList.remove('hidden');
