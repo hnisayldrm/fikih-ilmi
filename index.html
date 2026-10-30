@@ -25,10 +25,14 @@
         window.activeLeaderboardTab = 'daily';
         const MAX_DAILY_PLAY_LIMIT = 3;
 
+        // GOOGLE SHEETS CSV BAGLANTISI
+        // Aşağıdaki tırnak içine Google Sheets'ten aldığınız .csv bağlantısını yapıştırın:
+        const GOOGLE_SHEET_CSV_URL = "BURAYA_GOOGLE_SHEETS_CSV_LINKINI_YAPISTIRIN";
+
         let leaderboardDb = null;
         let firebaseReady = false;
         let pendingScores = [];
-        const SCORE_PATH = 'scores2'; // İkinci oyunun scores2 alanı
+        const SCORE_PATH = 'scores2';
 
         const currentUserId = (() => {
             try {
@@ -61,7 +65,6 @@
             return `${y}-${m}-${d}`;
         }
 
-        // Günlük 3 Tur Oynama Sınırı Yönetimi
         function getTodayPlayCount() {
             try {
                 const key = `fikih_daily_plays_${localDateKey()}`;
@@ -105,7 +108,6 @@
             return localDateKey(yesterday);
         }
 
-        // Aynı isimdeki kişilerin yalnızca EN YÜKSEK skorunu filteleyen yardımcı fonksiyon
         function filterHighestScoresOnly(scores) {
             const highestMap = new Map();
 
@@ -203,6 +205,7 @@
         window.addEventListener('DOMContentLoaded', () => {
             initLiveLeaderboardSync();
             updateDailyRightsUI();
+            fetchQuestionsFromGoogleSheets();
         });
 
         function getLeaderboard() {
@@ -215,7 +218,6 @@
                 sourceList = dailyList.length > 0 ? dailyList : allScores;
             }
             
-            // Aynı isimdeki oyuncuların sadece EN YÜKSEK skoru tutulur
             return filterHighestScoresOnly(sourceList);
         }
 
@@ -253,7 +255,6 @@
 
             noMsg.classList.add('hidden');
 
-            // 30 KİŞİ SINIRI KALDIRILDI: Tüm oyuncular listelenir
             list.forEach((item, index) => {
                 const tr = document.createElement('tr');
                 tr.className = index % 2 === 0 ? 'bg-slate-900/60' : 'bg-slate-800/40';
@@ -362,7 +363,7 @@
         <section id="welcomeScreen" class="space-y-6 text-center animate-fade-in">
             <div class="inline-flex items-center space-x-2 px-4 py-1.5 rounded-full bg-emerald-950/80 border border-emerald-500/30 text-emerald-300 text-xs sm:text-sm font-semibold mb-2">
                 <i class="fa-solid fa-sparkles text-amber-400"></i>
-                <span>25 Soruluk Tam Müfredat Fıkıh Yarışması</span>
+                <span>Canlı Soru Havuzlu Fıkıh Yarışması</span>
             </div>
 
             <div class="space-y-3">
@@ -375,7 +376,7 @@
                 </p>
             </div>
 
-            <!-- Dünün Şampiyonu Panosu (Fıkıh Keşfi) -->
+            <!-- Dünün Şampiyonu Panosu -->
             <div id="yesterdayWinnerCard" class="hidden bg-gradient-to-r from-amber-500/20 via-emerald-950 to-emerald-600/20 border border-amber-400/50 rounded-2xl p-4 max-w-xl mx-auto text-left shadow-lg backdrop-blur-sm">
                 <div class="flex items-center space-x-4">
                     <div class="w-12 h-12 rounded-full bg-amber-400/20 border border-amber-400/50 flex items-center justify-center text-amber-300 text-2xl shrink-0">
@@ -403,7 +404,6 @@
                         <span>Oyuncu Adı / İsminiz: <span class="text-rose-400">*</span></span>
                     </label>
 
-                    <!-- Günlük Hak Göstergesi -->
                     <div class="text-xs font-semibold text-slate-300 flex items-center space-x-1.5 bg-slate-900/80 px-2.5 py-1 rounded-lg border border-slate-700">
                         <i class="fa-solid fa-gamepad text-emerald-400"></i>
                         <span>Kalan Oyun Hakkı:</span>
@@ -441,7 +441,6 @@
 
             <!-- Game Mode Options -->
             <div class="grid grid-cols-1 md:grid-cols-2 gap-4 max-w-2xl mx-auto pt-2">
-                <!-- Mode 1: Test Mode -->
                 <div onclick="startGame('test')" class="group relative bg-slate-800/90 hover:bg-slate-800 border border-slate-700 hover:border-emerald-500/80 rounded-2xl p-6 text-left transition-all duration-300 transform hover:-translate-y-1 cursor-pointer custom-glow">
                     <div class="w-12 h-12 rounded-xl bg-emerald-500/10 border border-emerald-500/30 text-emerald-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-clock-rotate-left"></i>
@@ -454,7 +453,6 @@
                     </div>
                 </div>
 
-                <!-- Mode 2: Flashcard Mode -->
                 <div onclick="startGame('card')" class="group relative bg-slate-800/90 hover:bg-slate-800 border border-slate-700 hover:border-amber-500/80 rounded-2xl p-6 text-left transition-all duration-300 transform hover:-translate-y-1 cursor-pointer">
                     <div class="w-12 h-12 rounded-xl bg-amber-500/10 border border-amber-500/30 text-amber-400 flex items-center justify-center text-2xl mb-4 group-hover:scale-110 transition-transform">
                         <i class="fa-solid fa-layer-group"></i>
@@ -468,30 +466,17 @@
                 </div>
             </div>
 
-            <!-- Leaderboard Quick View Button & Topics -->
+            <!-- Leaderboard Quick View Button -->
             <div class="flex flex-col sm:flex-row items-center justify-center gap-3 max-w-2xl mx-auto pt-2">
                 <button onclick="openLeaderboardModal()" class="w-full sm:w-auto px-5 py-2.5 rounded-xl bg-slate-800 hover:bg-slate-700 border border-slate-700 text-amber-300 font-bold text-xs flex items-center justify-center space-x-2 transition-colors">
                     <i class="fa-solid fa-trophy text-amber-400"></i>
                     <span>Tüm Skor Tablosunu Gör</span>
                 </button>
             </div>
-
-            <!-- Question Topics Overview -->
-            <div class="bg-slate-800/40 border border-slate-800 rounded-xl p-4 max-w-2xl mx-auto mt-2">
-                <p class="text-xs text-slate-400 font-semibold mb-2 uppercase tracking-wider">İçerikte Yer Alan Fıkıh Konuları</p>
-                <div class="flex flex-wrap justify-center gap-2 text-xs text-slate-300">
-                    <span class="px-3 py-1 rounded-full bg-slate-700/60 border border-slate-600/50">Fıkhın Anlamı ve Alanları</span>
-                    <span class="px-3 py-1 rounded-full bg-slate-700/60 border border-slate-600/50">Farz-ı Ayn & Farz-ı Kifaye</span>
-                    <span class="px-3 py-1 rounded-full bg-slate-700/60 border border-slate-600/50">Taharet ve Temizlik Kuralları</span>
-                    <span class="px-3 py-1 rounded-full bg-slate-700/60 border border-slate-600/50">Abdestin Farzları ve Sünnetleri</span>
-                    <span class="px-3 py-1 rounded-full bg-slate-700/60 border border-slate-600/50">Namazın Önemi ve Korunması</span>
-                </div>
-            </div>
         </section>
 
         <!-- GAMEPLAY SCREEN -->
         <section id="gameplayScreen" class="hidden space-y-5 animate-fade-in">
-            <!-- Game Top Status Bar -->
             <div class="bg-slate-800/90 border border-slate-700/80 rounded-2xl p-4 flex items-center justify-between shadow-lg">
                 <div class="flex items-center space-x-3">
                     <span class="w-9 h-9 rounded-xl bg-emerald-500/20 text-emerald-400 font-bold flex items-center justify-center text-sm border border-emerald-500/30" id="currentQNum">
@@ -499,11 +484,10 @@
                     </span>
                     <div>
                         <div class="text-xs text-slate-400" id="playerDisplayName">Oyuncu</div>
-                        <div class="text-sm font-bold text-white"><span id="progressText">1</span> / 25 Soru</div>
+                        <div class="text-sm font-bold text-white"><span id="progressText">1</span> / <span id="totalQuestionsText">15</span> Soru</div>
                     </div>
                 </div>
 
-                <!-- Timer Ring (Visible in Test Mode) -->
                 <div id="timerContainer" class="flex items-center space-x-2 bg-slate-900/80 px-3 py-1.5 rounded-xl border border-slate-700">
                     <div class="relative w-8 h-8 flex items-center justify-center">
                         <svg class="w-full h-full">
@@ -515,7 +499,6 @@
                     <span class="text-xs font-semibold text-slate-300 hidden sm:inline">Kalan Süre</span>
                 </div>
 
-                <!-- Streak / Combo Indicator -->
                 <div class="hidden sm:flex items-center space-x-2 bg-amber-500/10 border border-amber-500/20 px-3 py-1 rounded-full">
                     <i class="fa-solid fa-fire text-amber-400 text-sm"></i>
                     <span class="text-xs font-bold text-amber-300">Seri: <span id="comboCount">0</span>x</span>
@@ -532,7 +515,6 @@
                 </div>
             </div>
 
-            <!-- Progress Bar -->
             <div class="w-full bg-slate-800 rounded-full h-2.5 overflow-hidden border border-slate-700/50">
                 <div id="progressBar" class="bg-gradient-to-r from-emerald-500 to-teal-300 h-2.5 rounded-full transition-all duration-300" style="width: 4%"></div>
             </div>
@@ -548,12 +530,10 @@
                     </h3>
                 </div>
 
-                <!-- Multiple Choice Options Grid -->
                 <div id="optionsContainer" class="grid grid-cols-1 gap-3 pt-2">
                     <!-- Dynamic Options -->
                 </div>
 
-                <!-- Instant Feedback Banner -->
                 <div id="feedbackBanner" class="hidden p-4 rounded-xl border flex items-center justify-between transition-all">
                     <div class="flex items-center space-x-3">
                         <i id="feedbackIcon" class="text-2xl"></i>
@@ -571,7 +551,6 @@
 
             <!-- MODE 2: TABU FLASHCARD CONTAINER -->
             <div id="cardQuestionContainer" class="hidden space-y-6">
-                <!-- Pass status bar -->
                 <div class="flex items-center justify-between bg-slate-800/80 px-4 py-2 rounded-xl border border-slate-700">
                     <div class="flex items-center space-x-2">
                         <i class="fa-solid fa-ticket text-amber-400"></i>
@@ -586,7 +565,6 @@
 
                 <div class="card-flip w-full min-h-[300px] cursor-pointer" onclick="flipCard()">
                     <div id="flashCardInner" class="card-inner relative w-full h-full rounded-2xl border border-slate-700 bg-slate-800 shadow-xl p-8 flex flex-col justify-between min-h-[300px]">
-                        <!-- Front Face -->
                         <div class="card-front absolute inset-0 p-6 flex flex-col justify-between bg-slate-800 rounded-2xl">
                             <div class="flex justify-between items-center">
                                 <span class="px-3 py-1 rounded-md bg-amber-950 text-amber-400 text-xs font-semibold border border-amber-800"><i class="fa-solid fa-circle-question text-amber-400 mr-1"></i> Bilgi Kartı</span>
@@ -602,7 +580,6 @@
                             </div>
                         </div>
 
-                        <!-- Back Face -->
                         <div class="card-back absolute inset-0 p-6 flex flex-col justify-between bg-slate-850 rounded-2xl border-2 border-emerald-500/50">
                             <div class="flex justify-between items-center">
                                 <span class="px-3 py-1 rounded-md bg-emerald-950 text-emerald-400 text-xs font-semibold border border-emerald-800">Doğru Cevap</span>
@@ -620,7 +597,6 @@
                     </div>
                 </div>
 
-                <!-- Self Assessment Rating Buttons -->
                 <div id="cardEvaluationBtns" class="opacity-50 pointer-events-none transition-opacity grid grid-cols-2 gap-4">
                     <button onclick="rateCard(false)" class="py-3 px-4 rounded-xl bg-rose-500/10 hover:bg-rose-500/20 border border-rose-500/40 text-rose-300 font-bold text-sm flex items-center justify-center space-x-2 transition-all active:scale-95">
                         <i class="fa-solid fa-xmark"></i>
@@ -645,10 +621,9 @@
 
                 <div>
                     <h2 class="text-3xl font-black text-white">Tebrikler <span id="resultPlayerName" class="text-amber-300">Oyuncu</span>!</h2>
-                    <p class="text-slate-300 text-sm mt-1">25 soruluk Fıkıh Bilgi Yarışmasını başarıyla tamamladınız.</p>
+                    <p class="text-slate-300 text-sm mt-1">Fıkıh Bilgi Yarışmasını başarıyla tamamladınız.</p>
                 </div>
 
-                <!-- Stats Grid -->
                 <div class="grid grid-cols-3 gap-3 bg-slate-900/80 p-4 rounded-xl border border-slate-700/70">
                     <div class="space-y-1">
                         <div class="text-xs text-slate-400">Toplam Puan</div>
@@ -656,7 +631,7 @@
                     </div>
                     <div class="space-y-1 border-x border-slate-800">
                         <div class="text-xs text-slate-400">Doğru Sayısı</div>
-                        <div id="finalCorrect" class="text-xl sm:text-2xl font-extrabold text-emerald-400">0 / 25</div>
+                        <div id="finalCorrect" class="text-xl sm:text-2xl font-extrabold text-emerald-400">0</div>
                     </div>
                     <div class="space-y-1">
                         <div class="text-xs text-slate-400">Başarı Oranı</div>
@@ -664,7 +639,6 @@
                     </div>
                 </div>
 
-                <!-- Achievement Badge -->
                 <div id="badgeContainer" class="p-4 rounded-xl bg-emerald-950/60 border border-emerald-500/30 flex items-center space-x-4 text-left">
                     <div class="text-3xl text-amber-400 shrink-0" id="badgeIcon">
                         <i class="fa-solid fa-award"></i>
@@ -675,7 +649,6 @@
                     </div>
                 </div>
 
-                <!-- Toggle Review Answers -->
                 <div class="pt-2">
                     <button onclick="toggleAnswerReview()" class="w-full py-2.5 px-4 rounded-xl bg-slate-900 hover:bg-slate-950 border border-slate-700 text-slate-300 text-xs font-bold flex items-center justify-center space-x-2 transition-colors">
                         <i class="fa-solid fa-list-ol"></i>
@@ -686,7 +659,6 @@
                     </div>
                 </div>
 
-                <!-- Actions -->
                 <div class="flex flex-col sm:flex-row gap-3 pt-2">
                     <button onclick="openLeaderboardModal()" class="flex-1 py-3 px-4 rounded-xl bg-amber-500/10 hover:bg-amber-500/20 border border-amber-500/40 text-amber-300 font-bold text-sm transition-all active:scale-95">
                         <i class="fa-solid fa-trophy mr-2 text-amber-400"></i> Skor Tablosu
@@ -704,14 +676,12 @@
         <!-- SCOREBOARD / LEADERBOARD MODAL -->
         <div id="leaderboardModal" class="fixed inset-0 bg-slate-950/80 backdrop-blur-sm z-50 hidden flex items-center justify-center p-4 animate-fade-in">
             <div class="bg-slate-900 border border-slate-700 rounded-2xl w-full max-w-2xl shadow-2xl overflow-hidden flex flex-col max-h-[90vh]">
-                <!-- Modal Header -->
                 <div class="px-6 py-4 border-b border-slate-800 bg-slate-850 flex items-center justify-between">
                     <div class="flex items-center space-x-2">
                         <i class="fa-solid fa-trophy text-amber-400 text-xl"></i>
                         <h3 class="font-extrabold text-lg text-white">Skor Tablosu</h3>
                     </div>
                     
-                    <!-- Daily / All Time Filter Tabs -->
                     <div class="flex items-center space-x-1.5 bg-slate-900 p-1 rounded-xl border border-slate-800">
                         <button id="tabDailyBtn" onclick="setLeaderboardTab('daily')" class="px-3 py-1.5 rounded-lg bg-emerald-600 text-white font-bold text-xs shadow-md transition-colors">
                             Bugün
@@ -726,7 +696,6 @@
                     </button>
                 </div>
 
-                <!-- Modal Body (Table) -->
                 <div class="p-6 overflow-y-auto flex-grow space-y-4">
                     <div class="overflow-x-auto">
                         <table class="w-full text-left text-xs sm:text-sm text-slate-300">
@@ -750,7 +719,6 @@
                     </div>
                 </div>
 
-                <!-- Modal Footer -->
                 <div class="px-6 py-3 border-t border-slate-800 bg-slate-850 flex items-center justify-between text-xs">
                     <span class="text-slate-500">En yüksek skorlar canlı olarak güncellenir.</span>
                     <button onclick="closeLeaderboardModal()" class="px-4 py-2 bg-slate-800 hover:bg-slate-700 text-slate-200 font-bold rounded-lg border border-slate-700 transition-colors">
@@ -764,7 +732,7 @@
 
     <!-- Footer -->
     <footer class="w-full border-t border-slate-800 py-4 bg-slate-950/60 text-center text-xs text-slate-500">
-        <p>Fıkıh Eğitim Oyunu • 25 Soruluk Tam Müfredat Seti</p>
+        <p>Fıkıh Eğitim Oyunu • Canlı Google Sheets Entegrasyonlu</p>
     </footer>
 
     <!-- Audio Effects Synthesizer -->
@@ -832,262 +800,61 @@
         }
     </script>
 
-    <!-- Quiz Dataset & Logic -->
+    <!-- Quiz Dataset & Logic from Google Sheets -->
     <script>
-        const questionsData = [
-            {
-                id: 1,
-                question: "Fıkıh kelimesinin sözlük ve terim (dinî) anlamı nedir?",
-                correct: "Sözlükte bir şeyi iyice anlamaktır. Terimde ise kişinin şer-i ve ameli hükümleri detaylarıyla bilmesini sağlayan ilimdir.",
-                distractors: [
-                    "Sözlükte geçmiş olayları ezberlemektir. Terimde ise sadece ibadetlerin şekilsel kurallarını inceleyen bilim dalıdır.",
-                    "Sözlükte güzel ahlaklı olmaktır. Terimde ise dinî metinlerin sadece dilbilgisi kurallarını ve terimlerini açıklayan ilimdir.",
-                    "Sözlükte akıl yürütmektir. Terimde ise inanç esaslarını mantıksal ve felsefi delillerle savunmayı amaçlayan ilimdir."
-                ]
-            },
-            {
-                id: 2,
-                question: "Peygamber Efendimiz (s.a.v.) 'Allah kimin için hayır dilerse...' hadis-i şerifini nasıl tamamlamıştır?",
-                correct: "'...onu dinde fakih (derin anlayış sahibi) kılar.' (Buhârî)",
-                distractors: [
-                    "'...ona dünyada çok büyük mal ve makam ihsan eder.'",
-                    "'...onun ömrünü uzun kılar ve hiç darlık göstermez.'",
-                    "'...onun tüm dualarını anında kabul edip mükafatlandırır.'"
-                ]
-            },
-            {
-                id: 3,
-                question: "İbn Abbas (r.a.) genç yaşta derin bir ilme nasıl ulaştığı sorulduğunda hangi iki temel ilkeden bahsetmiştir?",
-                correct: "1. Soran bir dil, 2. Akleden (düşünen) bir kalp.",
-                distractors: [
-                    "1. Çok okuyan bir göz, 2. Az konuşan bir ağız.",
-                    "1. Keskin bir hafıza, 2. Gece gündüz yazan bir kalem.",
-                    "1. Sabırlı bir beden, 2. Zengin bir kütüphane."
-                ]
-            },
-            {
-                id: 4,
-                question: "Farz-ı Ayn ile Farz-ı Kifaye arasındaki fark nedir ve örnekleri nelerdir?",
-                correct: "Farz-ı Ayn her mükellefin şahsen yapması şart olan ibadettir (Örn: Namaz); Farz-ı Kifaye ise bir grup yapınca diğerlerinden düşer (Örn: Cenaze namazı).",
-                distractors: [
-                    "Farz-ı Ayn sadece zenginlere farzdır (Örn: Zekat); Farz-ı Kifaye ise sadece yaşlılara farz olan ibadetlerdir (Örn: Hacca gitmek).",
-                    "Farz-ı Ayn topluca yapılan ibadettir (Örn: Cuma); Farz-ı Kifaye ise yalnız kılınan tüm kişisel ibadetlerdir (Örn: Teheccüd).",
-                    "Farz-ı Ayn sünnet olan amellerdir (Örn: Sadaka); Farz-ı Kifaye ise yapılması kesin zorunlu olan amellerdir (Örn: Oruç)."
-                ]
-            },
-            {
-                id: 5,
-                question: "Taharetin 3 boyutu (çeşitleri) nelerdir?",
-                correct: "Manevi taharet (kalbi şirkten temizlemek), Maddi taharet (beden ve çevreyi temiz tutmak) ve Hükmi taharet (abdest almak).",
-                distractors: [
-                    "Beden temizliği, Giysi temizliği ve Yiyecek temizliği olmak üzere üç kısımdır.",
-                    "Su ile temizlik, Toprak ile temizlik ve Güneş ile temizlik olmak üzere üç kısımdır.",
-                    "Ağız temizliği, Organ temizliği ve Ev temizliği olmak üzere üç temel boyuttur."
-                ]
-            },
-            {
-                id: 6,
-                question: "Helaya girerken hangi ayakla girilir ve hangi dua okunur?",
-                correct: "Sol ayakla girilir; 'Allahümme inni euzu bike minel hubsi vel habais' duası okunur.",
-                distractors: [
-                    "Sağ ayakla girilir; 'Bismillahi tevekkeltü alallah' duası okunur.",
-                    "Sol ayakla girilir; 'Ğufraneke ve ileykel masir' duası okunur.",
-                    "Sağ ayakla girilir; 'Sübhanallahi ve bihamdihi' duası okunur."
-                ]
-            },
-            {
-                id: 7,
-                question: "Temizlik esnasında hangi elin kullanılması kuraldır ve nedeni nedir?",
-                correct: "Temizlik sol el ile yapılır; çünkü Peygamberimiz güzel işlerde sağ elini, hoş olmayan işlerde ise sol elini kullanmıştır.",
-                distractors: [
-                    "Temizlik sağ el ile yapılır; çünkü sağ el her zaman daha kuvvetli ve daha beceriklidir.",
-                    "Her iki el birlikte kullanılır; çünkü tek elle hijyenik temizlik sağlamak oldukça zordur.",
-                    "İsteğe bağlıdır; kişi alışkın olduğu ve rahat ettiği eli kullanmakta özgürdür."
-                ]
-            },
-            {
-                id: 8,
-                question: "Heladan çıkarken hangi ayakla çıkılır ve hangi ifade söylenir?",
-                correct: "Sağ ayakla çıkılır ve 'Ğufraneke' denir.",
-                distractors: [
-                    "Sol ayakla çıkılır ve 'Elhamdülillah' denir.",
-                    "Sağ ayakla çıkılır ve 'Bismillah' denir.",
-                    "Sol ayakla çıkılır ve 'Estağfirullah' denir."
-                ]
-            },
-            {
-                id: 9,
-                question: "Açık alanda tuvalet ihtiyacı giderirken nelere dikkat edilmelidir?",
-                correct: "Kıbleye ön veya arka dönülmemeli; sular, yollar, gölgelikler ve hayvan yuvaları kirletilmemelidir.",
-                distractors: [
-                    "Sadece rüzgara karşı durulmamalı, diğer hususlarda özgürce hareket edilmelidir.",
-                    "Yüksek yerler tercih edilmeli, su kaynaklarına olan mesafe dikkate alınmamalıdır.",
-                    "Sadece ağaç altları kullanılmalı, yol kenarlarına dikkat edilmesine gerek yoktur."
-                ]
-            },
-            {
-                id: 10,
-                question: "Abdest kelimesinin kökeni ve Arapçadaki karşılığı olan 'Vudû' ne anlama gelir?",
-                correct: "Abdest Farsça kökenli olup 'el suyu' demektir; Arapçadaki 'Vudû' ise parlaklık, temizlik ve arınmak anlamı taşır.",
-                distractors: [
-                    "Abdest Arapça kökenli olup 'arınmak' demektir; Vudû ise Farsça kökenli olup 'yüz yıkamak' anlamına gelmektedir.",
-                    "Abdest Türkçe kökenli olup 'su ile temizlik' demektir; Vudû ise İbranice kökenli olup 'ibadet' demektir.",
-                    "Abdest Farsça kökenli olup 'temiz beden' demektir; Vudû ise Latince kökenli olup 'şifa bulmak' demektir."
-                ]
-            },
-            {
-                id: 11,
-                question: "Abdest almanın insana kazandırdığı manevi faziletlerden biri nedir?",
-                correct: "Yıkanan organlarla işlenen küçük günahların su damlalarıyla dökülmesini sağlar ve kıyamette abdest azalarında nur oluşturur.",
-                distractors: [
-                    "Kişinin dünyadaki rızkını kat kat artırır ve maddi sıkıntılarını tamamen giderir.",
-                    "İnsanı tüm büyük günahlardan ve kul haklarından anında tamamen arındırır.",
-                    "Kişinin bedenindeki tüm fiziki hastalıkları ve ağrıları mucizevi şekilde iyileştirir."
-                ]
-            },
-            {
-                id: 12,
-                question: "Abdestin geçerli olması için abdeste başlamadan önce bulunması gereken temel şartlar nelerdir?",
-                correct: "Akıllı ve bâliğ olmak, Müslüman olmak, niyet etmek, temiz su kullanmak ve deriye suyun ulaşmasını engelleyen katı maddeleri temizlemektir.",
-                distractors: [
-                    "Niyet etmek, o sırada oruçlu olmak, sadece soğuk su kullanmak ve kıbleye yönelmektir.",
-                    "Güneş doğmadan önce almak, en az üç litre su harcamak ve mutlaka sesli niyet etmektir.",
-                    "Tamamen sessiz bir ortamda bulunmak, yanına Havlu almak ve baştan sona dua okumaktır."
-                ]
-            },
-            {
-                id: 13,
-                question: "Abdestin rükunları (farzları) nelerdir ve organları kaçar defa yıkamak farzdır?",
-                correct: "Ağza-burna su vermek, yüzü yıkamak, kolları dirseklerle yıkamak, başı mesh etmek, ayakları yıkamak ve tertip üzere yapmaktır. Birer defa yıkamak farzdır.",
-                distractors: [
-                    "Sadece elleri, yüzü ve ayakları yıkamaktır. Bu organları üçer defa yıkamak farz olan miktarı yerine getirir.",
-                    "Ağza su vermek, kulakları yıkamak, boynu mesh etmek ve ayakları yıkamaktır. İkişer defa yıkamak farzdır.",
-                    "Yüzü yıkamak, kolları yıkamak, kulakları mesh etmek ve ayakları yıkamaktır. En az dört defa yıkamak şarttır."
-                ]
-            },
-            {
-                id: 14,
-                question: "Abdestte niyet nedir ve nasıl edilmelidir?",
-                correct: "Niyet kalbin amelidir, abdest alacağımızın bilinciyle suyu açmamız bile niyettir. Peygamberimiz sesli niyet etmediği için sesli niyet edilmez.",
-                distractors: [
-                    "Niyet dil ile yüksek sesle yapılmalıdır; dille söylenmeyen niyet geçersiz sayılır.",
-                    "Niyet sadece abdest tamamlandıktan sonra yapılan şükür duası ile gerçekleşir.",
-                    "Niyet abdestten bir saat önce zihinden geçirilmeli ve kağıda yazılmalıdır."
-                ]
-            },
-            {
-                id: 15,
-                question: "Hz. Peygamber'in (s.a.v.) rivayet olunan hadisinde abdest alan kulun durumu nasıl tarif edilir?",
-                correct: "Yüzünü, ellerini ve ayaklarını yıkadıkça o organlarıyla işlediği günahların su damlalarıyla aktığı ve günahlardan arınmış olarak çıktığı belirtilir.",
-                distractors: [
-                    "Kul abdest aldığında geçmiş tüm amellerinin katlanarak cennet sevabına dönüştüğü müjdelenir.",
-                    "Abdest alan kişinin melekler tarafından o gün işleyeceği tüm hataların önlendiği haber verilir.",
-                    "Kul abdest aldığında dünyadaki tüm zorluk ve sıkıntılarının anında sona ereceği ifade edilir."
-                ]
-            },
-            {
-                id: 16,
-                question: "'Abdest namazın şartıdır' cümlesinde şart kelimesi ne anlama gelmektedir?",
-                correct: "Şart, kendisi olmadığında şart koşulan şeyi de geçersiz kılan temel unsurdur; abdest yoksa namaz da olmaz.",
-                distractors: [
-                    "Şart, ibadetin daha sevaplı olmasını sağlayan ancak olmasa da ibadeti bozmayan bir tavsiyedir.",
-                    "Şart, sadece unutulduğunda kaza edilmesi gereken ikincil derecedeki bir kolaylıktır.",
-                    "Şart, kişiden kişiye değişebilen ve zorunluluğu bulunmayan güzel bir gelenektir."
-                ]
-            },
-            {
-                id: 17,
-                question: "Aşağıdakilerden hangisi Abdestin Sünnet olduğu durumlardan biridir?",
-                correct: "Gece yatağa girmeden/uyumadan önce, öfke ve heyecan anında veya abdestli iken yeniden abdest almak sünnettir.",
-                distractors: [
-                    "Sadece Cuma namazına katılmadan önce abdest almak zorunludur, diğer vakitlerde sünnettir.",
-                    "Yemek yemeden hemen önce ve yemekten hemen sonra elleri abdest şeklinde yıkamak sünnettir.",
-                    "Sadece yolculuğa çıkmadan önce abdest almak sünnettir, diğer hallerde gerek yoktur."
-                ]
-            },
-            {
-                id: 18,
-                question: "Aşağıdakilerden hangisi abdesti bozan durumlardan biridir?",
-                correct: "Ön ve arka yollardan çıkan her şey, bilincin kaybolması (bayılmak, derin uyku) ve edep yerine çıplak elle dokunmaktır.",
-                distractors: [
-                    "Tırnak kesmek, saç taramak, yüksek sesle gülmek ve yemek pişirmek abdesti bozar.",
-                    "Konuşmak, tebessüm etmek, soğuk su içmek ve ayakta durmak abdesti bozar.",
-                    "Abdestli iken ayakkabı giymek, çorap değiştirmek ve el sıkışmak abdesti derhal bozar."
-                ]
-            },
-            {
-                id: 19,
-                question: "İslam'ın beş esasından biri olan namaz ibadetinin hükmü ve önemi nedir?",
-                correct: "Akıl sağlığı yerinde ve ergenliğe ermiş her Müslümana farz-ı ayn olan bedenî ibadettir; dinin direğidir ve ilk hesaba çekilecek ameldir.",
-                distractors: [
-                    "Toplumun sadece belirli bir kesimine farz olan ve yerine getirilmediğinde sadaka ile telafi edilen bir ibadettir.",
-                    "Sadece Cuma ve Bayram günlerinde kılınması zorunlu olan, diğer vakitlerde ise isteğe bağlı olan bir sünnettir.",
-                    "Yaşlılık döneminde kılınması tavsiye edilen, gençlikte ise muaf olunan güzel bir ibadettir."
-                ]
-            },
-            {
-                id: 20,
-                question: "Namazı kasten ve mazeretsiz olarak terk etmenin ahiretteki ve manevi hayattaki sonucu nedir?",
-                correct: "En büyük günahlardan kabul edilir. Müddessir Suresi'nde cehenneme girenlerin 'Namaz kılanlardan değildik' diyecekleri bildirilir.",
-                distractors: [
-                    "Namazı terk etmek sadece hafif bir kusurdur ve diğer iyi amellerle anında telafi edilir.",
-                    "Ahirette hiçbir cezası yoktur, sadece dünyadaki manevi huzuru bir miktar azaltır.",
-                    "Kul hakkı sayıldığı için insanlardan helallik alınarak tamamen ortadan kaldırılır."
-                ]
-            },
-            {
-                id: 21,
-                question: "Mü'minûn Suresi'nde geçen 'Namazlarını korurlar' ayeti ışığında namazı korumak neleri kapsar?",
-                correct: "Namazın vaktini korumayı, rükünlerini usulüne uygun yapmayı, huşuyu muhafaza etmeyi ve hayat boyu devamlılığı sağlamayı kapsar.",
-                distractors: [
-                    "Namaz kılınan yerin temizliğini korumayı ve namaz elbiselerini pahalı kumaşlardan seçmeyi kapsar.",
-                    "Sadece camide cemaatle kılmayı ve namaz tesbihatını ezberden eksiksiz okumayı kapsar.",
-                    "Namaz sürelerini mümkün olduğunca uzatmayı ve gün boyu sürekli camide beklemeyi kapsar."
-                ]
-            },
-            {
-                id: 22,
-                question: "Unutma veya uyuyakalma sebebiyle namazı kaçıran bir kimsenin yapması gereken hadis-i şerifle nasıl açıklanmıştır?",
-                correct: "'Biriniz uyuyakalarak veya unutarak namazı kaçırırsa, hatırladığı zaman onu kılsın. Bunun kefareti ancak budur.' (Buhârî)",
-                distractors: [
-                    "'Namazı kaçıran kişi üç gün peş peşe oruç tutmalıdır; aksi takdirde o namaz hiçbir şekilde kabul olunmaz.'",
-                    "'Unutulan namazın kazası yapılmaz, sadece fakirlere sadaka verilerek günahı affettirilir.'",
-                    "'Bir vakit namaz kaçırıldığında bir sonraki vakit namazı iki katı rekat olarak kılınmalıdır.'"
-                ]
-            },
-            {
-                id: 23,
-                question: "Fıkıh ilminin incelediği ana alanlar (konular) nelerdir?",
-                correct: "İbadetler (kulluk vazifeleri), Muamelat (hukuki ve sosyal ilişkiler) ve Ukubat (ceza hukuku) fıkhın ana alanlarıdır.",
-                distractors: [
-                    "Kelam (inanç), Tasavvuf (ahlak) ve Mantık (felsefe) fıkhın ana inceleme alanlarıdır.",
-                    "Siyer (peygamberler tarihi), Tefsir (Kur'an yorumu) ve Dilbilgisi fıkhın konularıdır.",
-                    "Ahlak kuralları, Ticaret antlaşmaları ve Astronomi hesaplamaları fıkhın alanlarıdır."
-                ]
-            },
-            {
-                id: 24,
-                question: "Abdest organlarını birer defa yıkamak ile üçer defa yıkamak arasındaki hüküm farkı nedir?",
-                correct: "Organları birer defa yıkamak farz olan miktarı yerine getirir; üçer defa yıkamak ise sünnettir.",
-                distractors: [
-                    "Birer defa yıkamak sünnet, üçer defa yıkamak ise farzdır.",
-                    "İkisi de farzdır, kişi istediği miktar sayısını seçmekte özgürdür.",
-                    "Birer defa yıkamak geçersizdir, en az ikişer defa yıkamak farzdır."
-                ]
-            },
-            {
-                id: 25,
-                question: "Hadis-i şerifte geçen 'Mü'min abdestini muhafaza eden kişidir' ifadesi neyi anlatır?",
-                correct: "Kişinin gün boyunca imkanlar dahilinde sürekli abdestli bulunmaya gayret etmesinin sünnet ve faziletli bir davranış olduğunu anlatır.",
-                distractors: [
-                    "Abdest alırken harcanan suyun miktarını zapt etmeyi ve kesinlikle israf etmemeyi anlatır.",
-                    "Sadece namaz kılarken abdestli olmayı, namaz dışında abdestli durmamayı anlatır.",
-                    "Abdest suyunu özel kaplarda saklayıp temiz tutmayı anlatır."
-                ]
-            }
-        ];
+        let questionsData = [];
 
-        // Game Configuration & State
+        // CSV Verisini Ayrıştırma
+        function parseCSV(text) {
+            const lines = text.split('\n').filter(l => l.trim() !== '');
+            const result = [];
+            for (let i = 1; i < lines.length; i++) {
+                const row = [];
+                let inQuotes = false;
+                let currentStr = '';
+                for (let j = 0; j < lines[i].length; j++) {
+                    const char = lines[i][j];
+                    if (char === '"') {
+                        inQuotes = !inQuotes;
+                    } else if (char === ',' && !inQuotes) {
+                        row.push(currentStr.trim().replace(/^"|"$/g, ''));
+                        currentStr = '';
+                    } else {
+                        currentStr += char;
+                    }
+                }
+                row.push(currentStr.trim().replace(/^"|"$/g, ''));
+                
+                if (row.length >= 5 && row[0] && row[1]) {
+                    result.push({
+                        id: i,
+                        question: row[0],
+                        correct: row[1],
+                        distractors: [row[2], row[3], row[4]].filter(Boolean)
+                    });
+                }
+            }
+            return result;
+        }
+
+        async function fetchQuestionsFromGoogleSheets() {
+            if (!GOOGLE_SHEET_CSV_URL || GOOGLE_SHEET_CSV_URL.includes("BURAYA_GOOGLE_SHEETS")) {
+                console.warn("Google Sheets CSV bağlantısı henüz eklenmedi.");
+                return;
+            }
+            try {
+                const response = await fetch(GOOGLE_SHEET_CSV_URL);
+                const csvData = await response.text();
+                const parsedQuestions = parseCSV(csvData);
+                if (parsedQuestions.length > 0) {
+                    questionsData = parsedQuestions;
+                    console.log(`${questionsData.length} soru Google Sheets üzerinden yüklendi.`);
+                }
+            } catch (error) {
+                console.error("Google Sheets'ten sorular çekilemedi:", error);
+            }
+        }
+
         let playerName = "";
         let currentGameMode = 'test'; 
         let currentQuestionIndex = 0;
@@ -1098,7 +865,6 @@
         let isAnswered = false;
         let cardFlipped = false;
 
-        // Timer System Variables
         let timerDuration = 20;
         let currentSecondsLeft = 20;
         let timerInterval = null;
@@ -1187,7 +953,6 @@
                 return;
             }
 
-            // Günlük 3 Tur Sınırı Kontrolü
             if (getTodayPlayCount() >= MAX_DAILY_PLAY_LIMIT) {
                 nameErrText.innerText = "Günlük maksimum oyun oynama hakkınıza (3/3) ulaştınız. Yarın tekrar bekleriz!";
                 nameErr.classList.remove('hidden');
@@ -1195,10 +960,14 @@
                 return;
             }
 
+            if (questionsData.length === 0) {
+                alert("Sorular yükleniyor, lütfen birkaç saniye bekleyip tekrar deneyin veya Google Sheets bağlantınızı kontrol edin.");
+                return;
+            }
+
             nameErr.classList.add('hidden');
             nameInput.classList.remove('border-rose-500');
 
-            // Yeni oyun başladığında günlük tur hakkından 1 eksilt
             incrementTodayPlayCount();
 
             currentGameMode = mode;
@@ -1209,7 +978,9 @@
             correctAnswersCount = 0;
             userAnswersLog = [];
 
-            shuffledQuestions = shuffleArray(questionsData);
+            // Havuzdaki tüm soruları karıştır ve her oyunda rastgele 15 soru seç
+            const targetCount = Math.min(15, questionsData.length);
+            shuffledQuestions = shuffleArray(questionsData).slice(0, targetCount);
 
             document.getElementById('welcomeScreen').classList.add('hidden');
             document.getElementById('resultScreen').classList.add('hidden');
@@ -1219,6 +990,7 @@
             document.getElementById('globalScoreText').innerText = `0 Puan`;
             document.getElementById('currentScore').innerText = `0`;
             document.getElementById('comboCount').innerText = `0`;
+            document.getElementById('totalQuestionsText').innerText = shuffledQuestions.length;
 
             if (mode === 'test') {
                 document.getElementById('testQuestionContainer').classList.remove('hidden');
